@@ -17,8 +17,8 @@ error_reporting(E_ALL);
 define('DB_HOST',    'pgm-gw8ffg06e16gfgcwho.pgsql.germany.rds.aliyuncs.com');
 define('DB_PORT',    '5432');
 define('DB_NAME',    'postgres');
-define('DB_USER',    'Honsen_Admin');
-define('DB_PASSWORD','!66778899HONSEN');
+define('DB_USER',    'username');
+define('DB_PASSWORD','password');
 define('DB_TIMEOUT', 8);
 
 // ============================================================
