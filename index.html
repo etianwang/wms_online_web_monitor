@@ -8,6 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="/live2d/autoload.js"></script>
+<style>
+#sidebar { position: relative; overflow: hidden; }
+#sidebar-video {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; z-index: 0; pointer-events: none;
+}
+#sidebar > *:not(#sidebar-video) { position: relative; z-index: 1; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -15,7 +25,7 @@
   <!-- ===== HEADER ===== -->
   <header id="header">
     <div class="logo">
-      <div class="logo-icon">⚙</div>
+      <div class="logo-icon"><img src="logo.png" style="width:100%;height:100%;object-fit:contain;"></div>
       <div>
         <div class="logo-text">弘盛机电</div>
         <div class="logo-sub">AFRICA INVENTORY SYSTEM</div>
@@ -33,18 +43,16 @@
 
     <!-- Sidebar -->
     <nav id="sidebar">
+      <video id="sidebar-video" autoplay muted loop playsinline></video>
       <div class="sidebar-section-title">数据表</div>
       <div id="table-list">
-        <div class="table-item" style="color:var(--text-muted)">
-          <span>正在加载...</span>
-        </div>
+        <div class="table-item" style="color:var(--text-muted)"><span>正在加载...</span></div>
       </div>
     </nav>
 
     <!-- Content -->
     <div id="content">
 
-      <!-- Content header -->
       <div id="content-header">
         <div id="content-title" style="color:var(--text-muted)">← 请选择一张数据表</div>
         <div id="content-meta"></div>
@@ -53,29 +61,13 @@
 
       <!-- Filter panel -->
       <div id="filter-panel">
-        <!-- Inventory filters -->
         <div id="inv-filters" style="display:none">
           <div class="filter-grid">
-            <div class="filter-field">
-              <label>物品名称</label>
-              <input id="inv-keyword" type="text" placeholder="关键字搜索...">
-            </div>
-            <div class="filter-field">
-              <label>材料类型</label>
-              <select id="inv-category"><option>全部</option></select>
-            </div>
-            <div class="filter-field">
-              <label>专业</label>
-              <select id="inv-domain"><option>全部</option></select>
-            </div>
-            <div class="filter-field">
-              <label>储存位置</label>
-              <select id="inv-location"><option>全部</option></select>
-            </div>
-            <div class="filter-field">
-              <label>柜号</label>
-              <select id="inv-cabinet"><option>全部</option></select>
-            </div>
+            <div class="filter-field"><label>物品名称</label><input id="inv-keyword" type="text" placeholder="关键字搜索..."></div>
+            <div class="filter-field"><label>材料类型</label><select id="inv-category"><option>全部</option></select></div>
+            <div class="filter-field"><label>专业</label><select id="inv-domain"><option>全部</option></select></div>
+            <div class="filter-field"><label>储存位置</label><select id="inv-location"><option>全部</option></select></div>
+            <div class="filter-field"><label>柜号</label><select id="inv-cabinet"><option>全部</option></select></div>
             <div class="filter-field">
               <label>状态</label>
               <select id="inv-status">
@@ -87,40 +79,31 @@
             </div>
           </div>
         </div>
-
-        <!-- Transactions filters -->
         <div id="trans-filters" style="display:none">
           <div class="filter-grid">
-            <div class="filter-field">
-              <label>物品名称</label>
-              <input id="trans-keyword" type="text" placeholder="关键字搜索...">
-            </div>
+            <div class="filter-field"><label>物品名称</label><input id="trans-keyword" type="text" placeholder="关键字搜索..."></div>
             <div class="filter-field">
               <label>类型</label>
-              <select id="trans-type">
-                <option>全部</option>
-                <option value="IN">IN（入库）</option>
-                <option value="OUT">OUT（出库）</option>
-              </select>
+              <select id="trans-type"><option>全部</option><option value="IN">IN（入库）</option><option value="OUT">OUT（出库）</option></select>
             </div>
-            <div class="filter-field">
-              <label>项目</label>
-              <select id="trans-project"><option>全部</option></select>
-            </div>
-            <div class="filter-field">
-              <label>起始日期</label>
-              <input id="trans-start" type="date">
-            </div>
-            <div class="filter-field">
-              <label>截止日期</label>
-              <input id="trans-end" type="date">
-            </div>
+            <div class="filter-field"><label>项目</label><select id="trans-project"><option>全部</option></select></div>
+            <div class="filter-field"><label>起始日期</label><input id="trans-start" type="date"></div>
+            <div class="filter-field"><label>截止日期</label><input id="trans-end" type="date"></div>
           </div>
         </div>
-
         <div class="filter-actions">
           <button class="btn-primary" onclick="applyFilters()">🔍 应用筛选</button>
           <button class="btn-ghost" onclick="resetFilters()">✕ 重置</button>
+          <!-- 每页条数 -->
+          <div class="filter-field per-page-field">
+            <label>每页显示</label>
+            <select id="per-page-select" onchange="onPerPageChange()">
+              <option value="25">25 条</option>
+              <option value="50" selected>50 条</option>
+              <option value="100">100 条</option>
+              <option value="200">200 条</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -143,35 +126,43 @@
         </table>
       </div>
 
+      <!-- ===== 分页栏 ===== -->
+      <div id="pagination-bar"></div>
+
     </div><!-- /content -->
   </div><!-- /main-body -->
 </div><!-- /app -->
 
-<!-- Toast container -->
 <div id="toast-container"></div>
 
 <script>
-/* ================================================================
-   CONFIG
-   ================================================================ */
-const API = 'api.php'; // 与 api.php 同目录
+/* ── 视频背景 ── */
+(function() {
+  const videos = ['sidebar_bg1.mp4', 'sidebar_bg2.mp4'];
+  const chosen = videos[Math.floor(Math.random() * videos.length)];
+  const el = document.getElementById('sidebar-video');
+  el.src = chosen; el.load(); el.style.display = 'none';
+})();
 
-/* ================================================================
-   STATE
-   ================================================================ */
+/* ── CONFIG ── */
+const API = 'api.php';
+
+/* ── STATE ── */
 const state = {
-  currentTable: null,   // 'inventory' | 'transactions'
-  actualNames: {},      // { inventory: 'inventory', transactions: 'transactions' }
-  filterOpts: {},       // loaded filter options
+  currentTable: null,
+  actualNames: {},
+  filterOpts: {},
   sortCol: null,
   sortDir: 'asc',
-  rawRows: [],          // last fetched rows for client-sort
-  columns: [],          // current column defs
+  rawRows: [],
+  columns: [],
+  currentPage: 1,
+  totalPages: 1,
+  totalCount: 0,
+  perPage: 50,
 };
 
-/* ================================================================
-   COLUMN DEFINITIONS
-   ================================================================ */
+/* ── COLUMN DEFS ── */
 const COL_DEFS = {
   inventory: [
     { key: 'name',          label: '物品名称',   width: 240 },
@@ -196,9 +187,7 @@ const COL_DEFS = {
   ],
 };
 
-/* ================================================================
-   API HELPERS
-   ================================================================ */
+/* ── API ── */
 async function apiFetch(params) {
   const url = API + '?' + new URLSearchParams(params);
   const res = await fetch(url);
@@ -208,90 +197,70 @@ async function apiFetch(params) {
   return json.data;
 }
 
-/* ================================================================
-   INIT
-   ================================================================ */
+/* ── INIT ── */
 async function init() {
   setStatus('loading', '正在连接...');
   showOverlay('连接数据库...');
-
   try {
     await apiFetch({ action: 'ping' });
     setStatus('ok', '已连接');
   } catch(e) {
     setStatus('error', '连接失败');
     toast('数据库连接失败: ' + e.message, 'error');
-    hideOverlay();
-    return;
+    hideOverlay(); return;
   }
-
   await loadTables();
   await loadFilterOptions();
   hideOverlay();
 }
 
-/* ================================================================
-   TABLE LIST (SIDEBAR)
-   ================================================================ */
-const TABLE_ICONS = { '库存': '📦', '存取记录': '📋', '同步状态': '🔄' };
+/* ── TABLE LIST ── */
+const TABLE_ICONS = { '库存': '📦', '存取记录': '📋' };
 
 async function loadTables() {
   try {
     const tables = await apiFetch({ action: 'tables' });
     state.actualNames = {};
-    tables.forEach(t => {
-      state.actualNames[t.actual.toLowerCase()] = t.actual;
-    });
-
+    tables.forEach(t => { state.actualNames[t.actual.toLowerCase()] = t.actual; });
     const listEl = document.getElementById('table-list');
     listEl.innerHTML = '';
     tables.forEach((t, i) => {
       const el = document.createElement('div');
       el.className = 'table-item';
       el.dataset.actual = t.actual;
-      el.dataset.clean = t.actual.toLowerCase();
+      el.dataset.clean  = t.actual.toLowerCase();
       el.innerHTML = `<span class="table-icon">${TABLE_ICONS[t.display] || '🗃'}</span><span>${t.display}</span>`;
       el.onclick = () => selectTable(el);
       listEl.appendChild(el);
-      // Auto-select first
       if (i === 0) selectTable(el);
     });
-  } catch(e) {
-    toast('获取表列表失败: ' + e.message, 'error');
-  }
+  } catch(e) { toast('获取表列表失败: ' + e.message, 'error'); }
 }
 
 function selectTable(el) {
   document.querySelectorAll('.table-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
-
-  const clean = el.dataset.clean;
-  state.currentTable = clean;
-  state.sortCol = null;
-  state.sortDir = 'asc';
-
-  showFilterPanel(clean);
+  state.currentTable = el.dataset.clean;
+  state.sortCol = null; state.sortDir = 'asc';
+  state.currentPage = 1;
+  showFilterPanel(state.currentTable);
   resetFilters(false);
   loadData();
 }
 
-/* ================================================================
-   FILTER OPTIONS
-   ================================================================ */
+/* ── FILTER OPTIONS ── */
 async function loadFilterOptions() {
   try {
     const inv   = state.actualNames['inventory']    || 'inventory';
     const trans = state.actualNames['transactions'] || 'transactions';
     const opts  = await apiFetch({ action: 'filter_opts', inventory_table: inv, transactions_table: trans });
     state.filterOpts = opts;
-    populateSelect('inv-category', opts.inventory?.category);
-    populateSelect('inv-domain',   opts.inventory?.domain);
-    populateSelect('inv-location', opts.inventory?.location);
-    populateSelect('inv-cabinet',  opts.inventory?.cabinet);
-    populateSelect('trans-project', opts.transactions?.project);
-  } catch(e) {
-    toast('筛选选项加载失败: ' + e.message, 'error');
-  }
+    populateSelect('inv-category',   opts.inventory?.category);
+    populateSelect('inv-domain',     opts.inventory?.domain);
+    populateSelect('inv-location',   opts.inventory?.location);
+    populateSelect('inv-cabinet',    opts.inventory?.cabinet);
+    populateSelect('trans-project',  opts.transactions?.project);
+  } catch(e) { toast('筛选选项加载失败: ' + e.message, 'error'); }
 }
 
 function populateSelect(id, items) {
@@ -299,24 +268,16 @@ function populateSelect(id, items) {
   const sel = document.getElementById(id);
   const cur = sel.value;
   sel.innerHTML = '<option value="全部">全部</option>';
-  items.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = opt.textContent = v;
-    sel.appendChild(opt);
-  });
-  // Restore selection if still valid
+  items.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
 }
 
-/* ================================================================
-   FILTER PANEL
-   ================================================================ */
+/* ── FILTER PANEL ── */
 function showFilterPanel(clean) {
   const panel = document.getElementById('filter-panel');
   const invF  = document.getElementById('inv-filters');
   const traF  = document.getElementById('trans-filters');
   const statsBar = document.getElementById('stats-bar');
-
   if (clean === 'inventory' || clean === 'transactions') {
     panel.style.display = 'block';
     invF.style.display  = clean === 'inventory' ? 'block' : 'none';
@@ -329,43 +290,46 @@ function showFilterPanel(clean) {
 }
 
 function resetFilters(reload = true) {
-  document.getElementById('inv-keyword').value = '';
+  document.getElementById('inv-keyword').value  = '';
   document.getElementById('inv-category').value = '全部';
-  document.getElementById('inv-domain').value = '全部';
+  document.getElementById('inv-domain').value   = '全部';
   document.getElementById('inv-location').value = '全部';
-  document.getElementById('inv-cabinet').value = '全部';
-  document.getElementById('inv-status').value = '全部';
-
+  document.getElementById('inv-cabinet').value  = '全部';
+  document.getElementById('inv-status').value   = '全部';
   document.getElementById('trans-keyword').value = '';
-  document.getElementById('trans-type').value = '全部';
+  document.getElementById('trans-type').value    = '全部';
   document.getElementById('trans-project').value = '全部';
-
-  // Default dates: start = first of month, end = today
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   document.getElementById('trans-start').value = fmt(firstOfMonth);
   document.getElementById('trans-end').value   = fmt(today);
-
+  state.currentPage = 1;
   if (reload && state.currentTable) loadData();
 }
 
-function applyFilters() { loadData(); }
+function applyFilters() { state.currentPage = 1; loadData(); }
 
-function fmt(d) { return d.toISOString().slice(0,10); }
+function onPerPageChange() {
+  state.perPage = parseInt(document.getElementById('per-page-select').value, 10);
+  state.currentPage = 1;
+  loadData();
+}
 
-/* ================================================================
-   LOAD DATA
-   ================================================================ */
+function fmt(d) { return d.toISOString().slice(0, 10); }
+
+/* ── LOAD DATA ── */
 async function loadData() {
   const clean = state.currentTable;
   if (!clean) return;
 
-  const title = document.getElementById('content-title');
-  title.textContent = `⏳ 正在加载...`;
+  document.getElementById('content-title').textContent = '⏳ 正在加载...';
   showOverlay('查询数据库...');
 
   try {
     let result;
+    const page     = state.currentPage;
+    const per_page = state.perPage;
+
     if (clean === 'inventory') {
       result = await apiFetch({
         action:   'inventory',
@@ -376,32 +340,36 @@ async function loadData() {
         location: document.getElementById('inv-location').value,
         cabinet:  document.getElementById('inv-cabinet').value,
         status:   document.getElementById('inv-status').value,
+        page, per_page,
       });
     } else if (clean === 'transactions') {
       result = await apiFetch({
-        action:            'transactions',
-        table:             state.actualNames['transactions'] || 'transactions',
-        inventory_table:   state.actualNames['inventory'] || 'inventory',
-        keyword:           document.getElementById('trans-keyword').value,
-        type:              document.getElementById('trans-type').value,
-        project:           document.getElementById('trans-project').value,
-        start_date:        document.getElementById('trans-start').value,
-        end_date:          document.getElementById('trans-end').value,
+        action:          'transactions',
+        table:           state.actualNames['transactions'] || 'transactions',
+        inventory_table: state.actualNames['inventory'] || 'inventory',
+        keyword:         document.getElementById('trans-keyword').value,
+        type:            document.getElementById('trans-type').value,
+        project:         document.getElementById('trans-project').value,
+        start_date:      document.getElementById('trans-start').value,
+        end_date:        document.getElementById('trans-end').value,
+        page, per_page,
       });
-    } else {
-      // Fallback for sync_status or others — not directly supported but won't crash
-      hideOverlay();
-      return;
-    }
+    } else { hideOverlay(); return; }
 
-    state.rawRows = result.rows;
-    state.columns = COL_DEFS[clean] || [];
+    state.rawRows    = result.rows;
+    state.columns    = COL_DEFS[clean] || [];
+    state.totalCount = result.total_count;
+    state.totalPages = result.total_pages;
+    state.currentPage = result.page;
 
     renderTable(result.rows);
     renderStats(result.stats, clean);
+    renderPagination();
 
-    const limit = result.total === 1000 ? ' (已限制 1000 行)' : '';
-    title.textContent = `✅ ${displayName(clean)} — ${result.total} 行${limit}`;
+    const start = (result.page - 1) * per_page + 1;
+    const end   = Math.min(result.page * per_page, result.total_count);
+    document.getElementById('content-title').textContent =
+      `✅ ${displayName(clean)} — 第 ${start}–${end} 条，共 ${result.total_count} 条`;
     document.getElementById('content-meta').textContent = `查询耗时 ${result.duration}s`;
     document.getElementById('btn-export').style.display = 'inline-block';
   } catch(e) {
@@ -412,18 +380,15 @@ async function loadData() {
   }
 }
 
-/* ================================================================
-   RENDER TABLE
-   ================================================================ */
+/* ── RENDER TABLE ── */
 function renderTable(rows) {
   const clean = state.currentTable;
   const cols  = state.columns;
 
-  // --- Head ---
   const thead = document.getElementById('table-head');
   thead.innerHTML = '';
   const tr = document.createElement('tr');
-  cols.forEach((col, i) => {
+  cols.forEach(col => {
     const th = document.createElement('th');
     th.dataset.key = col.key;
     th.style.minWidth = col.width + 'px';
@@ -431,42 +396,34 @@ function renderTable(rows) {
     if (state.sortCol === col.key) icon = state.sortDir === 'asc' ? '↑' : '↓';
     th.innerHTML = `${col.label}<span class="sort-icon">${icon}</span>`;
     if (state.sortCol === col.key) th.className = 'sorted-' + state.sortDir;
-    if (!col.virtual) {
-      th.onclick = () => sortBy(col.key);
-    }
+    if (!col.virtual) th.onclick = () => sortBy(col.key);
     tr.appendChild(th);
   });
   thead.appendChild(tr);
 
-  // --- Body ---
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = '';
 
   if (!rows || rows.length === 0) {
     document.getElementById('empty-state').style.display = 'flex';
-    document.getElementById('data-table').style.display = 'none';
+    document.getElementById('data-table').style.display  = 'none';
     return;
   }
-
   document.getElementById('empty-state').style.display = 'none';
-  document.getElementById('data-table').style.display = '';
+  document.getElementById('data-table').style.display  = '';
 
   rows.forEach(row => {
     const tr = document.createElement('tr');
-
     if (clean === 'inventory') {
       const cur = parseInt(row.current_stock ?? -1);
       const min = parseInt(row.min_stock ?? 0);
       if (cur === 0)              tr.className = 'row-danger';
       else if (cur > 0 && cur < min) tr.className = 'row-warning';
     }
-
     cols.forEach(col => {
       const td = document.createElement('td');
       td.title = row[col.key] ?? '';
-
       if (col.key === '_status') {
-        // Virtual status column
         const cur = parseInt(row.current_stock ?? -1);
         const min = parseInt(row.min_stock ?? 0);
         if (cur === 0)
@@ -486,14 +443,11 @@ function renderTable(rows) {
       }
       tr.appendChild(td);
     });
-
     tbody.appendChild(tr);
   });
 }
 
-/* ================================================================
-   CLIENT-SIDE SORT
-   ================================================================ */
+/* ── CLIENT-SIDE SORT ── */
 function sortBy(key) {
   if (state.sortCol === key) {
     state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
@@ -501,59 +455,92 @@ function sortBy(key) {
     state.sortCol = key;
     state.sortDir = 'asc';
   }
-
   const sorted = [...state.rawRows].sort((a, b) => {
     let av = a[key] ?? '', bv = b[key] ?? '';
     const an = parseFloat(av), bn = parseFloat(bv);
     if (!isNaN(an) && !isNaN(bn)) { av = an; bv = bn; }
     if (av < bv) return state.sortDir === 'asc' ? -1 : 1;
-    if (av > bv) return state.sortDir === 'asc' ? 1 : -1;
+    if (av > bv) return state.sortDir === 'asc' ?  1 : -1;
     return 0;
   });
-
   renderTable(sorted);
 }
 
-/* ================================================================
-   STATS BAR
-   ================================================================ */
+/* ── PAGINATION ── */
+function renderPagination() {
+  const bar   = document.getElementById('pagination-bar');
+  const total = state.totalPages;
+  const cur   = state.currentPage;
+
+  if (total <= 1) { bar.innerHTML = ''; return; }
+
+  // 计算显示的页码范围（当前页前后各 2 页）
+  let pages = [];
+  pages.push(1);
+  for (let i = Math.max(2, cur - 2); i <= Math.min(total - 1, cur + 2); i++) pages.push(i);
+  if (total > 1) pages.push(total);
+  pages = [...new Set(pages)];
+
+  let html = `<div class="pg-wrap">`;
+  html += `<button class="pg-btn${cur === 1 ? ' disabled' : ''}" onclick="goPage(${cur - 1})">&lsaquo; 上一页</button>`;
+
+  let prev = null;
+  pages.forEach(p => {
+    if (prev !== null && p - prev > 1) {
+      html += `<span class="pg-ellipsis">…</span>`;
+    }
+    html += `<button class="pg-btn pg-num${p === cur ? ' active' : ''}" onclick="goPage(${p})">${p}</button>`;
+    prev = p;
+  });
+
+  html += `<button class="pg-btn${cur === total ? ' disabled' : ''}" onclick="goPage(${cur + 1})">下一页 &rsaquo;</button>`;
+  html += `<span class="pg-info">第 ${cur} / ${total} 页，共 ${state.totalCount} 条</span>`;
+  html += `</div>`;
+
+  bar.innerHTML = html;
+}
+
+function goPage(p) {
+  if (p < 1 || p > state.totalPages || p === state.currentPage) return;
+  state.currentPage = p;
+  loadData();
+  // 回到表格顶部
+  document.getElementById('table-wrap').scrollTop = 0;
+}
+
+/* ── STATS BAR ── */
 function renderStats(stats, clean) {
   const bar = document.getElementById('stats-bar');
   bar.innerHTML = '';
   if (!stats) return;
-
   let html = '';
   if (clean === 'inventory') {
     html = `
-      <div class="stat-chip">总行数 <span class="val">${stats.total}</span></div>
-      <div class="stat-chip">类型 <span class="val">${stats.categories}</span> 个</div>
-      <div class="stat-chip">专业 <span class="val">${stats.domains}</span> 个</div>
-      <div class="stat-chip">位置 <span class="val">${stats.locations}</span> 个</div>
-      <div class="stat-chip">柜号 <span class="val">${stats.cabinets}</span> 个</div>
+      <div class="stat-chip">总数 <span class="val">${stats.total}</span></div>
+      <div class="stat-chip">类型 <span class="val">${stats.categories}</span></div>
+      <div class="stat-chip">专业 <span class="val">${stats.domains}</span></div>
+      <div class="stat-chip">位置 <span class="val">${stats.locations}</span></div>
+      <div class="stat-chip">柜号 <span class="val">${stats.cabinets}</span></div>
       <div class="stat-chip"><span class="dot-y">🟡</span> 预警 <span class="val">${stats.warning}</span></div>
       <div class="stat-chip"><span class="dot-r">🔴</span> 缺货 <span class="val">${stats.out}</span></div>
     `;
   } else if (clean === 'transactions') {
     html = `
-      <div class="stat-chip">总行数 <span class="val">${stats.total}</span></div>
+      <div class="stat-chip">总数 <span class="val">${stats.total}</span></div>
       <div class="stat-chip"><span class="dot-g">↑</span> 入库 <span class="val">${stats.in}</span></div>
       <div class="stat-chip"><span class="dot-r">↓</span> 出库 <span class="val">${stats.out}</span></div>
-      <div class="stat-chip">类型 <span class="val">${stats.categories}</span> 个</div>
-      <div class="stat-chip">项目 <span class="val">${stats.projects}</span> 个</div>
+      <div class="stat-chip">类型 <span class="val">${stats.categories}</span></div>
+      <div class="stat-chip">项目 <span class="val">${stats.projects}</span></div>
     `;
   }
   bar.innerHTML = html;
 }
 
-/* ================================================================
-   EXPORT CSV
-   ================================================================ */
+/* ── EXPORT CSV ── */
 function exportCSV() {
   const clean = state.currentTable;
   if (!clean) return;
-
   const params = new URLSearchParams({ action: 'export', table_type: clean });
-
   if (clean === 'inventory') {
     params.set('table',    state.actualNames['inventory'] || 'inventory');
     params.set('keyword',  document.getElementById('inv-keyword').value);
@@ -571,55 +558,37 @@ function exportCSV() {
     params.set('start_date',      document.getElementById('trans-start').value);
     params.set('end_date',        document.getElementById('trans-end').value);
   }
-
   const a = document.createElement('a');
-  a.href = API + '?' + params.toString();
-  a.download = '';
-  a.click();
+  a.href = API + '?' + params.toString(); a.download = ''; a.click();
   toast('CSV 导出已开始下载', 'ok');
 }
 
-/* ================================================================
-   UI HELPERS
-   ================================================================ */
+/* ── UI HELPERS ── */
 function showOverlay(text = '加载中...') {
   document.getElementById('overlay-text').textContent = text;
   document.getElementById('overlay').classList.add('visible');
 }
-function hideOverlay() {
-  document.getElementById('overlay').classList.remove('visible');
-}
-
+function hideOverlay() { document.getElementById('overlay').classList.remove('visible'); }
 function setStatus(type, text) {
-  const dot = document.getElementById('status-dot');
-  dot.className = 'status-dot ' + type;
+  document.getElementById('status-dot').className = 'status-dot ' + type;
   document.getElementById('status-text').textContent = text;
 }
-
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = msg;
+  el.className = `toast ${type}`; el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 3500);
 }
+function displayName(clean) { return { inventory: '库存', transactions: '存取记录' }[clean] || clean; }
 
-function displayName(clean) {
-  return { inventory: '库存', transactions: '存取记录' }[clean] || clean;
-}
-
-/* ================================================================
-   KEYBOARD SHORTCUTS
-   ================================================================ */
+/* ── KEYBOARD ── */
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) {
     applyFilters();
   }
 });
 
-/* ================================================================
-   BOOT
-   ================================================================ */
+/* ── BOOT ── */
 init();
 </script>
 </body>

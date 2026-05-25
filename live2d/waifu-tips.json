@@ -1,0 +1,48 @@
+{
+  "mouseover": [
+    { "selector": "#conn-status", "text": ["监控服务器连接正常。"] },
+    { "selector": "#btn-refresh-header", "text": ["点击手动刷新监控数据。"] },
+    { "selector": ".table-item", "text": ["正在加载选定物资模块。"] },
+    { "selector": "#btn-export", "text": ["导出当前仓库台账报表。"] },
+    { "selector": ".btn-primary", "text": ["应用筛选条件。"] },
+    { "selector": ".btn-ghost", "text": ["重置筛选条件。"] },
+    { "selector": "thead th", "text": ["点击此处对数据进行排序。"] }
+  ],
+  "click": [
+    { "selector": ".btn-primary", "text": ["操作已发送至仓储服务器。"] },
+    { "selector": ".filter-field select", "text": ["请选择筛选指标。"] }
+  ],
+  "seasons": [],
+  "time": [
+    { "hour": "6-7", "text": "早安，监控系统已启动。" },
+    { "hour": "8-11", "text": "上午工作时段，请留意库存波动。" },
+    { "hour": "12-13", "text": "午间休息，系统静默监控中。" },
+    { "hour": "14-17", "text": "下午作业时段，请确认入库计划。" },
+    { "hour": "18-19", "text": "今日作业将尽，请汇总报表。" },
+    { "hour": "20-21", "text": "晚间时段，监控程序运行正常。" },
+    { "hour": "22-23", "text": "系统即将进入例行维护。" },
+    { "hour": "0-5", "text": "服务器备份时段，请勿操作。" }
+  ],
+  "message": {
+    "default": ["仓储助手就绪。", "正在监控数据流。"],
+    "console": "侦测到非法调试行为。",
+    "copy": "信息已复制至剪贴板。",
+    "visibilitychange": "正在尝试重连服务器。",
+    "changeSuccess": "视角模式已切换。",
+    "changeFail": "无法切换视角。",
+    "photo": "库存快照已生成。",
+    "goodbye": "系统已断开。",
+    "hitokoto": "系统运行正常，数据监测中。",
+    "welcome": "欢迎进入仓储监控系统。",
+    "referrer": "欢迎管理人员登录。",
+    "hoverBody": ["请专注工作界面。", "请勿干扰看板。"],
+    "tapBody": ["正在核对数据实时状态...", "权限不足。"]
+  },
+  "models": [
+    {
+      "name": "WMS-Assistant",
+      "paths": ["https://fastly.jsdelivr.net/gh/fghrsh/live2d_api/model/Potion-Maker/Pio/index.json"],
+      "message": "工业仓储监控模块上线。"
+    }
+  ]
+}
