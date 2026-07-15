@@ -1,0 +1,7 @@
+db_config.php
+*.local.php
+.env
+.env.*
+__pycache__/
+*.pyc
+.DS_Store

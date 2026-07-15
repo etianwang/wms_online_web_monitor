@@ -9,29 +9,24 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-/** @var array 区域数据库配置；请求参数 region=ci|cm */
-$DB_REGIONS = array(
-    'ci' => array(
-        'label'    => '科特迪瓦',
-        'host'     => 'pgm-gw8ffg06e16gfgcwho.pgsql.germany.rds.aliyuncs.com',
-        'port'     => '5432',
-        'dbname'   => 'postgres',
-        'user'     => 'Honsen_Admin',
-        'password' => '!66778899HONSEN',
-        'timeout'  => 8,
-        'sslmode'  => '',
-    ),
-    'cm' => array(
-        'label'    => '喀麦隆',
-        'host'     => 'ep-soft-grass-abytsqkh.eu-west-2.aws.neon.tech',
-        'port'     => '5432',
-        'dbname'   => 'neondb',
-        'user'     => 'neondb_owner',
-        'password' => 'npg_HAMNDb6U9IzX',
-        'timeout'  => 8,
-        'sslmode'  => 'require',
-    ),
-);
+/** @var array 区域数据库配置；来自同目录 db_config.php（见 db_config.example.php） */
+$db_config_file = __DIR__ . '/db_config.php';
+if (!is_file($db_config_file)) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(500);
+    echo json_encode(array(
+        'success' => false,
+        'error'   => '缺少 db_config.php。请复制 db_config.example.php 为 db_config.php 并填写数据库信息。',
+    ), JSON_UNESCAPED_UNICODE);
+    exit();
+}
+$DB_REGIONS = require $db_config_file;
+if (!is_array($DB_REGIONS) || empty($DB_REGIONS)) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(500);
+    echo json_encode(array('success' => false, 'error' => 'db_config.php 格式无效'), JSON_UNESCAPED_UNICODE);
+    exit();
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');

@@ -4,17 +4,31 @@
 //  前端 HTML + 后端 API 二合一；有 action 参数时返回 JSON，否则输出页面
 // ============================================================
 
-// ---------- 数据库配置（原 config.php 内容，请按实际填写） ----------
+// ---------- 数据库配置（读取同目录 db_config.php，默认用科特迪瓦 ci） ----------
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-define('DB_HOST',    'pgm-gw8ffg06e16gfgcwho.pgsql.germany.rds.aliyuncs.com');
-define('DB_PORT',    '5432');
-define('DB_NAME',    'postgres');
-define('DB_USER',    'Honsen_Admin');
-define('DB_PASSWORD','!66778899HONSEN');
-define('DB_TIMEOUT', 8);
+$db_config_file = __DIR__ . '/db_config.php';
+if (!is_file($db_config_file)) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('缺少 db_config.php。请复制 db_config.example.php 为 db_config.php 并填写数据库信息。');
+}
+$_DB_REGIONS = require $db_config_file;
+$_DB = isset($_DB_REGIONS['ci']) ? $_DB_REGIONS['ci'] : reset($_DB_REGIONS);
+if (!is_array($_DB) || empty($_DB['host'])) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('db_config.php 无效');
+}
+define('DB_HOST',    $_DB['host']);
+define('DB_PORT',    isset($_DB['port']) ? $_DB['port'] : '5432');
+define('DB_NAME',    $_DB['dbname']);
+define('DB_USER',    $_DB['user']);
+define('DB_PASSWORD',$_DB['password']);
+define('DB_TIMEOUT', isset($_DB['timeout']) ? (int)$_DB['timeout'] : 8);
+define('DB_SSLMODE', isset($_DB['sslmode']) ? $_DB['sslmode'] : '');
 
 
 $TABLE_NAME_MAP = [
@@ -27,6 +41,9 @@ function getDBConnection() {
         return null;
     }
     $dsn = 'pgsql:host='.DB_HOST.';port='.DB_PORT.';dbname='.DB_NAME.';connect_timeout='.DB_TIMEOUT;
+    if (DB_SSLMODE !== '') {
+        $dsn .= ';sslmode='.DB_SSLMODE;
+    }
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASSWORD, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
