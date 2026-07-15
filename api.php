@@ -2,19 +2,36 @@
 /**
  * 弘盛机电 非洲库存系统 - PHP 后端 API
  * 兼容 PHP 7.4+  |  需要 pdo_pgsql 扩展
- * v2 — 新增分页支持
+ * v3 — 多区域：ci=科特迪瓦(阿里云) / cm=喀麦隆(Neon)
  */
 
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-define('DB_HOST',    'pgm-gw8ffg06e16gfgcwho.pgsql.germany.rds.aliyuncs.com');
-define('DB_PORT',    '5432');
-define('DB_NAME',    'postgres');
-define('DB_USER',    'Honsen_Admin');
-define('DB_PASSWORD','!66778899HONSEN');
-define('DB_TIMEOUT', 8);
+/** @var array 区域数据库配置；请求参数 region=ci|cm */
+$DB_REGIONS = array(
+    'ci' => array(
+        'label'    => '科特迪瓦',
+        'host'     => 'pgm-gw8ffg06e16gfgcwho.pgsql.germany.rds.aliyuncs.com',
+        'port'     => '5432',
+        'dbname'   => 'postgres',
+        'user'     => 'Honsen_Admin',
+        'password' => '!66778899HONSEN',
+        'timeout'  => 8,
+        'sslmode'  => '',
+    ),
+    'cm' => array(
+        'label'    => '喀麦隆',
+        'host'     => 'ep-soft-grass-abytsqkh.eu-west-2.aws.neon.tech',
+        'port'     => '5432',
+        'dbname'   => 'neondb',
+        'user'     => 'neondb_owner',
+        'password' => 'npg_HAMNDb6U9IzX',
+        'timeout'  => 8,
+        'sslmode'  => 'require',
+    ),
+);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -37,39 +54,101 @@ function json_err($msg, $code = 500) {
     exit();
 }
 
+function get_region_config() {
+    global $DB_REGIONS;
+    $region = strtolower(get_param('region', 'ci'));
+    if ($region === '') $region = 'ci';
+    if (!isset($DB_REGIONS[$region])) {
+        json_err('未知区域: ' . $region . '（可用: ci=科特迪瓦, cm=喀麦隆）', 400);
+    }
+    return array($region, $DB_REGIONS[$region]);
+}
+
 function get_connection() {
     if (!extension_loaded('pdo_pgsql')) {
         json_err('服务器缺少 pdo_pgsql 扩展，请在 php.ini 中启用 extension=pdo_pgsql 并重启PHP');
     }
-    $dsn = 'pgsql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';connect_timeout=' . DB_TIMEOUT;
+    list($region, $cfg) = get_region_config();
+    $dsn = 'pgsql:host=' . $cfg['host']
+         . ';port=' . $cfg['port']
+         . ';dbname=' . $cfg['dbname']
+         . ';connect_timeout=' . $cfg['timeout'];
+    if (!empty($cfg['sslmode'])) {
+        $dsn .= ';sslmode=' . $cfg['sslmode'];
+    }
     try {
-        $pdo = new PDO($dsn, DB_USER, DB_PASSWORD, array(
+        $pdo = new PDO($dsn, $cfg['user'], $cfg['password'], array(
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => true,
         ));
         $pdo->exec("SET timezone TO 'UTC'");
         return $pdo;
     } catch (PDOException $e) {
-        json_err('数据库连接失败: ' . $e->getMessage());
+        $msg = $e->getMessage();
+        if (stripos($msg, 'sslmode') !== false && stripos($msg, 'SSL support is not compiled') !== false) {
+            json_err(
+                '[' . $cfg['label'] . '] 当前 PHP 的 pgsql 未启用 SSL，无法连接 Neon。'
+                . '请在服务器安装带 OpenSSL 的 php-pgsql/pdo_pgsql，或将喀麦隆库迁到与科特迪瓦相同的可连主机；'
+                . '原始错误: ' . $msg
+            );
+        }
+        if (stripos($msg, 'SSL') !== false || stripos($msg, 'sslmode') !== false) {
+            json_err(
+                '[' . $cfg['label'] . '] SSL 连接失败（Neon 必须 SSL）。请确认服务器 pgsql 支持 SSL。原始错误: ' . $msg
+            );
+        }
+        json_err('[' . $cfg['label'] . '] 数据库连接失败: ' . $msg);
     }
+}
+
+/** 将 Inventory / inventory 等解析为库中真实表名（大小写敏感） */
+function resolve_table_name($pdo, $wanted) {
+    $wanted = trim((string)$wanted);
+    if ($wanted === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $wanted)) {
+        json_err('非法表名: ' . $wanted, 400);
+    }
+    $stmt = $pdo->prepare(
+        "SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+           AND LOWER(table_name) = LOWER(:t)
+         LIMIT 1"
+    );
+    $stmt->execute(array(':t' => $wanted));
+    $actual = $stmt->fetchColumn();
+    if (!$actual) {
+        json_err('表不存在: ' . $wanted, 404);
+    }
+    return $actual;
 }
 
 /* ── 路由 ── */
 $action = get_param('action', 'ping');
-switch ($action) {
-    case 'ping':         action_ping();               break;
-    case 'tables':       action_get_tables();         break;
-    case 'filter_opts':  action_get_filter_options(); break;
-    case 'inventory':    action_get_inventory();      break;
-    case 'transactions': action_get_transactions();   break;
-    case 'export':       action_export_csv();         break;
-    default:             json_err('未知操作: ' . $action, 400);
+try {
+    switch ($action) {
+        case 'ping':         action_ping();               break;
+        case 'tables':       action_get_tables();         break;
+        case 'filter_opts':  action_get_filter_options(); break;
+        case 'inventory':    action_get_inventory();      break;
+        case 'transactions': action_get_transactions();   break;
+        case 'export':       action_export_csv();         break;
+        default:             json_err('未知操作: ' . $action, 400);
+    }
+} catch (Throwable $e) {
+    json_err($e->getMessage());
 }
 
 /* ── ping ── */
 function action_ping() {
+    list($region, $cfg) = get_region_config();
     $pdo = get_connection();
-    json_ok(array('status' => 'connected', 'php' => PHP_VERSION, 'time' => gmdate('Y-m-d H:i:s') . ' UTC'));
+    json_ok(array(
+        'status' => 'connected',
+        'region' => $region,
+        'label'  => $cfg['label'],
+        'php'    => PHP_VERSION,
+        'time'   => gmdate('Y-m-d H:i:s') . ' UTC',
+    ));
 }
 
 /* ── tables ── */
@@ -94,8 +173,8 @@ function action_get_tables() {
 /* ── filter_opts ── */
 function action_get_filter_options() {
     $pdo   = get_connection();
-    $inv   = get_param('inventory_table',    'inventory');
-    $trans = get_param('transactions_table', 'transactions');
+    $inv   = resolve_table_name($pdo, get_param('inventory_table',    'inventory'));
+    $trans = resolve_table_name($pdo, get_param('transactions_table', 'transactions'));
     $result = array('inventory' => array(), 'transactions' => array());
     foreach (array('category', 'domain', 'location', 'cabinet') as $col) {
         $stmt = $pdo->prepare('SELECT DISTINCT ' . $col . ' FROM public."' . $inv . '" WHERE ' . $col . ' IS NOT NULL ORDER BY ' . $col);
@@ -120,7 +199,7 @@ function parse_pagination() {
 function action_get_inventory() {
     $t0       = microtime(true);
     $pdo      = get_connection();
-    $table    = get_param('table',    'inventory');
+    $table    = resolve_table_name($pdo, get_param('table', 'inventory'));
     $keyword  = get_param('keyword');
     $category = get_param('category');
     $domain   = get_param('domain');
@@ -154,16 +233,15 @@ function action_get_inventory() {
         $rows        = array_slice($all, $offset, $per_page);
         $stats       = compute_inventory_stats($all);
     } else {
-        /* 数据库分页 */
+        /* 数据库分页（LIMIT/OFFSET 用整型字面量，避免部分 PDO/pgsql 绑定失败） */
         $count_stmt = $pdo->prepare('SELECT COUNT(*) FROM public."' . $table . '" I ' . $ws);
         $count_stmt->execute($params);
         $total_count = (int)$count_stmt->fetchColumn();
 
-        $stmt = $pdo->prepare('SELECT * FROM public."' . $table . '" I ' . $ws . ' ORDER BY I.id LIMIT :limit OFFSET :offset');
-        foreach ($params as $k => $v) $stmt->bindValue($k, $v);
-        $stmt->bindValue(':limit',  $per_page, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset,   PDO::PARAM_INT);
-        $stmt->execute();
+        $sql = 'SELECT * FROM public."' . $table . '" I ' . $ws
+             . ' ORDER BY I.id LIMIT ' . (int)$per_page . ' OFFSET ' . (int)$offset;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $rows = $stmt->fetchAll();
 
         $stats = compute_inventory_stats_from_db($pdo, $table, $ws, $params);
@@ -195,6 +273,12 @@ function compute_inventory_stats_from_db($pdo, $table, $ws, $params) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $r = $stmt->fetch();
+    if (!$r) {
+        return array(
+            'categories' => 0, 'domains' => 0, 'locations' => 0, 'cabinets' => 0,
+            'total' => 0, 'warning' => 0, 'out' => 0,
+        );
+    }
     return array(
         'categories' => (int)$r['categories'],
         'domains'    => (int)$r['domains'],
@@ -230,8 +314,8 @@ function compute_inventory_stats($rows) {
 function action_get_transactions() {
     $t0          = microtime(true);
     $pdo         = get_connection();
-    $trans_table = get_param('table',           'transactions');
-    $inv_table   = get_param('inventory_table', 'inventory');
+    $trans_table = resolve_table_name($pdo, get_param('table',           'transactions'));
+    $inv_table   = resolve_table_name($pdo, get_param('inventory_table', 'inventory'));
     $keyword     = get_param('keyword');
     $type        = get_param('type');
     $project     = get_param('project');
@@ -258,12 +342,9 @@ function action_get_transactions() {
     $stmt = $pdo->prepare(
         'SELECT T.id, I.name AS item_name, I.category AS item_category, T.item_id, T.type, T.quantity, T.date, T.recipient_source, T.project_ref
          ' . $join . ' ' . $ws . '
-         ORDER BY T.date DESC LIMIT :limit OFFSET :offset'
+         ORDER BY T.date DESC LIMIT ' . (int)$per_page . ' OFFSET ' . (int)$offset
     );
-    foreach ($params as $k => $v) $stmt->bindValue($k, $v);
-    $stmt->bindValue(':limit',  $per_page, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset,   PDO::PARAM_INT);
-    $stmt->execute();
+    $stmt->execute($params);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$row) {
         if (!empty($row['date'])) $row['date'] = date('Y-m-d H:i:s', strtotime($row['date']));
@@ -308,7 +389,7 @@ function action_export_csv() {
     $pdo        = get_connection();
 
     if ($table_type === 'inventory') {
-        $table    = get_param('table',    'inventory');
+        $table    = resolve_table_name($pdo, get_param('table', 'inventory'));
         $keyword  = get_param('keyword');
         $category = get_param('category');
         $domain   = get_param('domain');
@@ -340,8 +421,8 @@ function action_export_csv() {
         $col_labels = array('物品名称','物品型号','材料类型','专业','单位','当前库存','最低库存','储存位置','柜号');
         $fname      = '库存_' . date('Ymd_His') . '.csv';
     } else {
-        $trans_table = get_param('table',           'transactions');
-        $inv_table   = get_param('inventory_table', 'inventory');
+        $trans_table = resolve_table_name($pdo, get_param('table',           'transactions'));
+        $inv_table   = resolve_table_name($pdo, get_param('inventory_table', 'inventory'));
         $keyword     = get_param('keyword');
         $type        = get_param('type');
         $project     = get_param('project');

@@ -75,6 +75,40 @@ html, body {
   display: flex; align-items: center; gap: 8px;
   font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary);
 }
+
+#region-switch {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.region-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  line-height: 1.2;
+}
+.region-btn + .region-btn {
+  border-left: 1px solid var(--border);
+}
+.region-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.region-btn.active {
+  color: #fff;
+  background: var(--accent);
+}
 .status-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--text-muted); flex-shrink: 0;

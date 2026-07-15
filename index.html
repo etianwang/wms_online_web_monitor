@@ -31,6 +31,10 @@
         <div class="logo-sub">AFRICA INVENTORY SYSTEM</div>
       </div>
     </div>
+    <div id="region-switch" role="tablist" aria-label="国家/区域">
+      <button type="button" class="region-btn active" data-region="ci" onclick="switchRegion('ci')">🇨🇮 科特迪瓦</button>
+      <button type="button" class="region-btn" data-region="cm" onclick="switchRegion('cm')">🇨🇲 喀麦隆</button>
+    </div>
     <div id="conn-status">
       <div class="status-dot loading" id="status-dot"></div>
       <span id="status-text">正在连接...</span>
@@ -146,9 +150,11 @@
 
 /* ── CONFIG ── */
 const API = 'api.php';
+const REGION_LABELS = { ci: '科特迪瓦', cm: '喀麦隆' };
 
 /* ── STATE ── */
 const state = {
+  region: (localStorage.getItem('wms_region') === 'cm') ? 'cm' : 'ci',
   currentTable: null,
   actualNames: {},
   filterOpts: {},
@@ -189,23 +195,65 @@ const COL_DEFS = {
 
 /* ── API ── */
 async function apiFetch(params) {
-  const url = API + '?' + new URLSearchParams(params);
+  const url = API + '?' + new URLSearchParams({ region: state.region, ...params });
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || '未知错误');
+  let json;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new Error(res.ok ? '响应不是 JSON' : `HTTP ${res.status}`);
+  }
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `HTTP ${res.status}`);
+  }
   return json.data;
+}
+
+function syncRegionUI() {
+  document.querySelectorAll('.region-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.region === state.region);
+  });
+}
+
+function switchRegion(region) {
+  if (region !== 'ci' && region !== 'cm') return;
+  if (region === state.region) return;
+  state.region = region;
+  localStorage.setItem('wms_region', region);
+  state.currentTable = null;
+  state.actualNames = {};
+  state.filterOpts = {};
+  state.rawRows = [];
+  state.columns = [];
+  state.sortCol = null;
+  state.sortDir = 'asc';
+  state.currentPage = 1;
+  document.getElementById('content-title').textContent = '← 请选择一张数据表';
+  document.getElementById('content-meta').textContent = '';
+  document.getElementById('btn-export').style.display = 'none';
+  document.getElementById('table-head').innerHTML = '';
+  document.getElementById('table-body').innerHTML = '';
+  document.getElementById('stats-bar').innerHTML = '';
+  document.getElementById('pagination-bar').innerHTML = '';
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('data-table').style.display = 'none';
+  document.getElementById('filter-panel').style.display = 'none';
+  syncRegionUI();
+  toast('已切换到 ' + (REGION_LABELS[region] || region), 'ok');
+  init();
 }
 
 /* ── INIT ── */
 async function init() {
-  setStatus('loading', '正在连接...');
-  showOverlay('连接数据库...');
+  syncRegionUI();
+  const label = REGION_LABELS[state.region] || state.region;
+  setStatus('loading', '正在连接 ' + label + '...');
+  showOverlay('连接 ' + label + ' 数据库...');
   try {
-    await apiFetch({ action: 'ping' });
-    setStatus('ok', '已连接');
+    const ping = await apiFetch({ action: 'ping' });
+    setStatus('ok', (ping.label || label) + ' · 已连接');
   } catch(e) {
-    setStatus('error', '连接失败');
+    setStatus('error', label + ' · 连接失败');
     toast('数据库连接失败: ' + e.message, 'error');
     hideOverlay(); return;
   }
@@ -540,7 +588,7 @@ function renderStats(stats, clean) {
 function exportCSV() {
   const clean = state.currentTable;
   if (!clean) return;
-  const params = new URLSearchParams({ action: 'export', table_type: clean });
+  const params = new URLSearchParams({ action: 'export', table_type: clean, region: state.region });
   if (clean === 'inventory') {
     params.set('table',    state.actualNames['inventory'] || 'inventory');
     params.set('keyword',  document.getElementById('inv-keyword').value);
