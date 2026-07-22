@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260722">
-<script src="/live2d/autoload.js"></script>
+<link rel="stylesheet" href="style.css?v=20260722b">
+<!-- <script src="/live2d/autoload.js"></script> -->
 <style>
 #sidebar { position: relative; overflow: hidden; }
 #sidebar-video {
@@ -224,8 +224,8 @@ const COL_DEFS = {
     { key: 'min_stock',     label: '最低库存',   width: 80  },
     { key: 'location',      label: '储存位置',   width: 100 },
     { key: 'cabinet',       label: '柜号',       width: 80  },
-    { key: '_status',       label: '状态',       width: 140, virtual: true },
-    { key: '_actions',      label: '存取记录',   width: 100, virtual: true },
+    { key: '_status',       label: '状态',   width: 88,  virtual: true, tight: true },
+    { key: '_actions',      label: '记录',   width: 56,  virtual: true, tight: true },
   ],
   transactions: [
     { key: 'id',               label: '序号',       width: 70  },
@@ -486,12 +486,19 @@ function renderTable(rows) {
   cols.forEach(col => {
     const th = document.createElement('th');
     th.dataset.key = col.key;
+    if (col.tight) th.classList.add('col-tight');
+    if (col.key === '_actions') th.classList.add('col-actions');
     th.style.minWidth = col.width + 'px';
-    let icon = '⇅';
-    if (state.sortCol === col.key) icon = state.sortDir === 'asc' ? '↑' : '↓';
-    th.innerHTML = `${col.label}<span class="sort-icon">${icon}</span>`;
-    if (state.sortCol === col.key) th.className = 'sorted-' + state.sortDir;
-    if (!col.virtual) th.onclick = () => sortBy(col.key);
+    if (!col.virtual) {
+      let icon = '⇅';
+      if (state.sortCol === col.key) icon = state.sortDir === 'asc' ? '↑' : '↓';
+      th.innerHTML = `${col.label}<span class="sort-icon">${icon}</span>`;
+      if (state.sortCol === col.key) th.classList.add('sorted-' + state.sortDir);
+      th.onclick = () => sortBy(col.key);
+    } else {
+      th.innerHTML = col.label;
+      th.style.cursor = 'default';
+    }
     tr.appendChild(th);
   });
   thead.appendChild(tr);
@@ -517,12 +524,15 @@ function renderTable(rows) {
     }
     cols.forEach(col => {
       const td = document.createElement('td');
+      if (col.tight) td.classList.add('col-tight');
+      if (col.key === '_actions') td.classList.add('col-actions');
       if (col.key === '_actions') {
         if (clean === 'inventory' && row.id != null) {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'btn-history';
-          btn.textContent = '📋 查看';
+          btn.textContent = '查看';
+          btn.title = '查看存取记录';
           btn.onclick = () => openItemHistory(row.id, row.name);
           td.appendChild(btn);
         } else {
@@ -531,7 +541,7 @@ function renderTable(rows) {
         tr.appendChild(td);
         return;
       }
-      td.title = row[col.key] ?? '';
+      if (!col.tight) td.title = row[col.key] ?? '';
       if (col.key === '_status') {
         const cur = parseInt(row.current_stock ?? -1);
         const min = parseInt(row.min_stock ?? 0);
