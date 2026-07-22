@@ -2,7 +2,7 @@
 /**
  * 弘盛机电 非洲库存系统 - PHP 后端 API
  * 兼容 PHP 7.4+  |  需要 pdo_pgsql 扩展
- * v3 — 多区域：ci=科特迪瓦(阿里云) / cm=喀麦隆(Neon)
+ * v4 — 多区域：ci=科特迪瓦(阿里云) / ci_jz=科特迪瓦精装(Neon) / cm=喀麦隆(Neon)
  */
 
 ini_set('display_errors', 0);
@@ -54,7 +54,11 @@ function get_region_config() {
     $region = strtolower(get_param('region', 'ci'));
     if ($region === '') $region = 'ci';
     if (!isset($DB_REGIONS[$region])) {
-        json_err('未知区域: ' . $region . '（可用: ci=科特迪瓦, cm=喀麦隆）', 400);
+        $avail = array();
+        foreach ($DB_REGIONS as $k => $cfg) {
+            $avail[] = $k . '=' . (isset($cfg['label']) ? $cfg['label'] : $k);
+        }
+        json_err('未知区域: ' . $region . '（可用: ' . implode(', ', $avail) . '）', 400);
     }
     return array($region, $DB_REGIONS[$region]);
 }
@@ -126,6 +130,7 @@ try {
         case 'filter_opts':  action_get_filter_options(); break;
         case 'inventory':    action_get_inventory();      break;
         case 'transactions': action_get_transactions();   break;
+        case 'item_transactions': action_get_item_transactions(); break;
         case 'export':       action_export_csv();         break;
         default:             json_err('未知操作: ' . $action, 400);
     }
@@ -137,12 +142,28 @@ try {
 function action_ping() {
     list($region, $cfg) = get_region_config();
     $pdo = get_connection();
+
+    /* 若库中有 sync_status 表，取最近一次同步时间（UTC） */
+    $last_sync = null;
+    $chk = $pdo->prepare(
+        "SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'public' AND LOWER(table_name) = 'sync_status' LIMIT 1"
+    );
+    $chk->execute();
+    $sync_table = $chk->fetchColumn();
+    if ($sync_table) {
+        $stmt = $pdo->query('SELECT MAX(last_sync_time) FROM public."' . $sync_table . '"');
+        $v = $stmt->fetchColumn();
+        if ($v) $last_sync = gmdate('Y-m-d\TH:i:s\Z', strtotime($v));
+    }
+
     json_ok(array(
-        'status' => 'connected',
-        'region' => $region,
-        'label'  => $cfg['label'],
-        'php'    => PHP_VERSION,
-        'time'   => gmdate('Y-m-d H:i:s') . ' UTC',
+        'status'    => 'connected',
+        'region'    => $region,
+        'label'     => $cfg['label'],
+        'php'       => PHP_VERSION,
+        'time'      => gmdate('Y-m-d H:i:s') . ' UTC',
+        'last_sync' => $last_sync,
     ));
 }
 
@@ -375,6 +396,49 @@ function action_get_transactions() {
         'page'        => $page,
         'per_page'    => $per_page,
         'total_pages' => $total_pages,
+    ));
+}
+
+/* ── 单条库存的存取记录（弹窗用，上限 5000） ── */
+function action_get_item_transactions() {
+    $t0          = microtime(true);
+    $pdo         = get_connection();
+    $item_id     = (int)get_param('item_id', 0);
+    if ($item_id <= 0) {
+        json_err('缺少有效 item_id', 400);
+    }
+    $trans_table = resolve_table_name($pdo, get_param('table',           'transactions'));
+    $inv_table   = resolve_table_name($pdo, get_param('inventory_table', 'inventory'));
+
+    $name_stmt = $pdo->prepare('SELECT name FROM public."' . $inv_table . '" WHERE id = :id');
+    $name_stmt->execute(array(':id' => $item_id));
+    $item_name = $name_stmt->fetchColumn();
+    if ($item_name === false) {
+        json_err('库存记录不存在: id=' . $item_id, 404);
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT T.id, T.date, T.type, T.quantity, T.recipient_source, T.project_ref
+         FROM public."' . $trans_table . '" T
+         WHERE T.item_id = :item_id
+         ORDER BY T.date DESC
+         LIMIT 5000'
+    );
+    $stmt->execute(array(':item_id' => $item_id));
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$row) {
+        if (!empty($row['date'])) {
+            $row['date'] = date('Y-m-d H:i:s', strtotime($row['date']));
+        }
+    }
+    unset($row);
+
+    json_ok(array(
+        'item_id'   => $item_id,
+        'item_name' => $item_name,
+        'rows'      => $rows,
+        'total'     => count($rows),
+        'duration'  => round(microtime(true) - $t0, 3),
     ));
 }
 

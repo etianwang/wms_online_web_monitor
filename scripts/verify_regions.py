@@ -1,4 +1,4 @@
-"""Smoke-check both region DBs. Credentials from env or db_config.php next to repo root."""
+"""Smoke-check all region DBs. Credentials from env or db_config.php next to repo root."""
 import os
 import re
 import sys
@@ -22,13 +22,10 @@ def load_regions():
         sys.exit(1)
     text = CONFIG.read_text(encoding="utf-8")
     regions = {}
-    for key in ("ci", "cm"):
-        block = re.search(rf"'{key}'\s*=>\s*array\s*\((.*?)\)\s*,", text, re.S)
-        if not block:
-            continue
-        body = block.group(1)
+    for m in re.finditer(r"'([a-z0-9_]+)'\s*=>\s*array\s*\((.*?)\)\s*,", text, re.S):
+        key, body = m.group(1), m.group(2)
         fields = dict(re.findall(r"'(\w+)'\s*=>\s*'([^']*)'", body))
-        if not fields.get("host"):
+        if not fields.get("host") or fields["host"].startswith("YOUR_"):
             continue
         ssl = fields.get("sslmode") or ""
         dsn = (
@@ -39,7 +36,6 @@ def load_regions():
         if ssl:
             dsn += f" sslmode={ssl}"
         regions[key] = {"label": fields.get("label", key), "dsn": dsn}
-    # Env override (optional)
     for key in list(regions):
         env_dsn = os.environ.get(f"WMS_DSN_{key.upper()}")
         if env_dsn:
@@ -50,6 +46,10 @@ def load_regions():
 NAME_MAP = {"inventory": "库存", "transactions": "存取记录"}
 
 regions = load_regions()
+if not regions:
+    print("No regions loaded from db_config.php")
+    sys.exit(1)
+
 ok = True
 for key, cfg in regions.items():
     print(f"=== {key} {cfg['label']} ===")

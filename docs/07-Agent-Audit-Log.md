@@ -57,5 +57,50 @@
 - **Acceptance**: 科特迪瓦 / 喀麦隆切换可用
 - **Next**: 喀麦隆库若仍为空表，等业务数据同步；勿在宝塔面板重装 pgsql 扩展
 
+## 2026-07-17 — Start: 科特迪瓦精装第三库
+
+- **Intent**: 页头增加科特迪瓦精装（Neon eu-central-1 pooler），region=`ci_jz`
+- **Planned tasks**: T5 文档 → T6 db_config → T7 api 动态区域列表 → T8 前端三按钮 → T9 verify 脚本
+- **Notes**: 凭据只写入本地 `db_config.php`；仓库仅更新 example
+
+## 2026-07-17 — Done: 科特迪瓦精装切换
+
+- **Intent**: 三区域并列切换
+- **Changed**:
+  - `db_config.example.php` / 本地 `db_config.php`：新增 `ci_jz`
+  - `index.html`：第三按钮「科特迪瓦精装」；REGION_KEYS / localStorage
+  - `api.php`：未知 region 动态列出已配置键
+  - `scripts/verify_regions.py`：解析全部 region 块
+  - docs Task / Test Rules / Audit
+- **Tests**: 部署后测 `ping&region=ci_jz`；侧栏应映射 Inventory/transactions（与其它 Neon 库同约定）
+- **Acceptance**: 页头三选项可切换且请求带正确 region
+- **Next**: 服务器更新代码后同步写入 `db_config.php` 的 `ci_jz` 段
+
+## 2026-07-17 — Fix: 分页按钮不显示
+
+- **Intent**: 修复分页栏不可见
+- **Changed**: `style.css` 中 `#pagination-bar` 原为 `display:none` 且样式类名（`page-btn`）与 JS 生成的（`pg-btn`/`pg-wrap`/`pg-info`）不匹配；重写为匹配类名，空栏自动隐藏
+- **Tests**: 部署后在总条数 > 每页条数时应显示上一页/页码/下一页
+- **Acceptance**: 887 行库存默认 50/页应出现 18 页分页栏
+
+## 2026-07-17 — 顶部显示上次同步时间
+
+- **Intent**: 顶栏显示各库 `sync_status` 最新 `last_sync_time`，本机时间 +（UTC）
+- **Changed**: `api.php` ping 查 `sync_status`（表存在时）回传 ISO UTC；`index.html` 增加 `#sync-time` 并本地化渲染；`style.css` 样式
+- **Tests**: 库无 `sync_status` 表或无记录时不显示；有记录时格式为「上次同步 YYYY-MM-DD HH:mm:ss（UTC …）」
+- **Acceptance**: 切换区域后同步时间随 ping 更新
+
+## 2026-07-22 — 库存行存取记录弹窗
+
+- **Intent**: 库存每行「查看」按钮，弹窗显示该材料全部存取记录
+- **Changed**:
+  - `api.php`：`item_transactions` 按 `item_id` 查最多 5000 条
+  - `index.html`：库存末列「存取记录」+ 弹窗；Esc/遮罩关闭
+  - `style.css`：`.btn-history`、`.modal-*`
+  - docs Task / Test Rules TR-08
+- **Tests**: TR-08；部署后点库存行「查看」应出弹窗
+- **Acceptance**: 无需去存取记录页筛选即可看单条材料历史
+- **Next**: 部署 `api.php` / `index.html` / `style.css`
+
 
 

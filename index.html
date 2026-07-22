@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260722">
 <script src="/live2d/autoload.js"></script>
 <style>
 #sidebar { position: relative; overflow: hidden; }
@@ -33,11 +33,13 @@
     </div>
     <div id="region-switch" role="tablist" aria-label="国家/区域">
       <button type="button" class="region-btn active" data-region="ci" onclick="switchRegion('ci')">🇨🇮 科特迪瓦</button>
+      <button type="button" class="region-btn" data-region="ci_jz" onclick="switchRegion('ci_jz')">🇨🇮 科特迪瓦精装</button>
       <button type="button" class="region-btn" data-region="cm" onclick="switchRegion('cm')">🇨🇲 喀麦隆</button>
     </div>
     <div id="conn-status">
       <div class="status-dot loading" id="status-dot"></div>
       <span id="status-text">正在连接...</span>
+      <span id="sync-time"></span>
     </div>
     <button id="btn-refresh-header" onclick="init()">↻ 刷新</button>
   </header>
@@ -139,6 +141,42 @@
 
 <div id="toast-container"></div>
 
+<!-- 存取记录弹窗 -->
+<div id="item-history-modal" class="modal hidden" aria-hidden="true">
+  <div class="modal-backdrop" onclick="closeItemHistory()"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-title">存取记录</div>
+        <div class="modal-sub" id="modal-sub"></div>
+      </div>
+      <button type="button" class="modal-close" onclick="closeItemHistory()" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-loading" id="modal-loading">
+        <div class="spinner"></div>
+        <span>加载中...</span>
+      </div>
+      <div class="modal-empty hidden" id="modal-empty">暂无存取记录</div>
+      <div class="modal-table-wrap hidden" id="modal-table-wrap">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>日期时间</th>
+              <th>类型</th>
+              <th>数量</th>
+              <th>来源/接收人</th>
+              <th>项目</th>
+            </tr>
+          </thead>
+          <tbody id="modal-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
 <script>
 /* ── 视频背景 ── */
 (function() {
@@ -150,11 +188,17 @@
 
 /* ── CONFIG ── */
 const API = 'api.php';
-const REGION_LABELS = { ci: '科特迪瓦', cm: '喀麦隆' };
+const REGION_LABELS = { ci: '科特迪瓦', ci_jz: '科特迪瓦精装', cm: '喀麦隆' };
+const REGION_KEYS = Object.keys(REGION_LABELS);
+
+function loadSavedRegion() {
+  const saved = localStorage.getItem('wms_region');
+  return REGION_KEYS.includes(saved) ? saved : 'ci';
+}
 
 /* ── STATE ── */
 const state = {
-  region: (localStorage.getItem('wms_region') === 'cm') ? 'cm' : 'ci',
+  region: loadSavedRegion(),
   currentTable: null,
   actualNames: {},
   filterOpts: {},
@@ -181,6 +225,7 @@ const COL_DEFS = {
     { key: 'location',      label: '储存位置',   width: 100 },
     { key: 'cabinet',       label: '柜号',       width: 80  },
     { key: '_status',       label: '状态',       width: 140, virtual: true },
+    { key: '_actions',      label: '存取记录',   width: 100, virtual: true },
   ],
   transactions: [
     { key: 'id',               label: '序号',       width: 70  },
@@ -216,7 +261,7 @@ function syncRegionUI() {
 }
 
 function switchRegion(region) {
-  if (region !== 'ci' && region !== 'cm') return;
+  if (!REGION_KEYS.includes(region)) return;
   if (region === state.region) return;
   state.region = region;
   localStorage.setItem('wms_region', region);
@@ -252,8 +297,10 @@ async function init() {
   try {
     const ping = await apiFetch({ action: 'ping' });
     setStatus('ok', (ping.label || label) + ' · 已连接');
+    renderSyncTime(ping.last_sync);
   } catch(e) {
     setStatus('error', label + ' · 连接失败');
+    renderSyncTime(null);
     toast('数据库连接失败: ' + e.message, 'error');
     hideOverlay(); return;
   }
@@ -470,6 +517,20 @@ function renderTable(rows) {
     }
     cols.forEach(col => {
       const td = document.createElement('td');
+      if (col.key === '_actions') {
+        if (clean === 'inventory' && row.id != null) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-history';
+          btn.textContent = '📋 查看';
+          btn.onclick = () => openItemHistory(row.id, row.name);
+          td.appendChild(btn);
+        } else {
+          td.textContent = '—';
+        }
+        tr.appendChild(td);
+        return;
+      }
       td.title = row[col.key] ?? '';
       if (col.key === '_status') {
         const cur = parseInt(row.current_stock ?? -1);
@@ -621,6 +682,18 @@ function setStatus(type, text) {
   document.getElementById('status-dot').className = 'status-dot ' + type;
   document.getElementById('status-text').textContent = text;
 }
+
+/* ── 上次同步时间：本机时间 + (UTC) ── */
+function renderSyncTime(isoUtc) {
+  const el = document.getElementById('sync-time');
+  if (!isoUtc) { el.textContent = ''; return; }
+  const d = new Date(isoUtc);
+  if (isNaN(d)) { el.textContent = ''; return; }
+  const pad = n => String(n).padStart(2, '0');
+  const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const utc = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  el.textContent = `上次同步 ${local}（UTC ${utc}）`;
+}
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${type}`; el.textContent = msg;
@@ -628,6 +701,76 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3500);
 }
 function displayName(clean) { return { inventory: '库存', transactions: '存取记录' }[clean] || clean; }
+
+/* ── 库存行存取记录弹窗 ── */
+function setModalVisible(visible) {
+  const modal = document.getElementById('item-history-modal');
+  modal.classList.toggle('hidden', !visible);
+  modal.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  document.body.style.overflow = visible ? 'hidden' : '';
+}
+
+function closeItemHistory() {
+  setModalVisible(false);
+}
+
+async function openItemHistory(itemId, itemName) {
+  setModalVisible(true);
+  document.getElementById('modal-title').textContent = '存取记录';
+  document.getElementById('modal-sub').textContent = itemName || ('ID ' + itemId);
+  document.getElementById('modal-footer').textContent = '';
+  document.getElementById('modal-loading').classList.remove('hidden');
+  document.getElementById('modal-empty').classList.add('hidden');
+  document.getElementById('modal-table-wrap').classList.add('hidden');
+  document.getElementById('modal-table-body').innerHTML = '';
+
+  try {
+    const result = await apiFetch({
+      action:          'item_transactions',
+      item_id:         itemId,
+      table:           state.actualNames['transactions'] || 'transactions',
+      inventory_table: state.actualNames['inventory'] || 'inventory',
+    });
+    document.getElementById('modal-sub').textContent = result.item_name || itemName || ('ID ' + itemId);
+    document.getElementById('modal-loading').classList.add('hidden');
+
+    if (!result.rows || result.rows.length === 0) {
+      document.getElementById('modal-empty').classList.remove('hidden');
+      return;
+    }
+
+    const tbody = document.getElementById('modal-table-body');
+    result.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      const type = (row.type ?? '').toUpperCase();
+      const typeHtml = type === 'IN'
+        ? '<span class="badge badge-green">↑ IN</span>'
+        : '<span class="badge badge-blue">↓ OUT</span>';
+      tr.innerHTML = `
+        <td>${row.date ?? '—'}</td>
+        <td>${typeHtml}</td>
+        <td>${row.quantity ?? '—'}</td>
+        <td>${row.recipient_source ?? '—'}</td>
+        <td>${row.project_ref ?? '—'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('modal-table-wrap').classList.remove('hidden');
+    document.getElementById('modal-footer').textContent =
+      `共 ${result.total} 条 · 查询耗时 ${result.duration}s`;
+  } catch (e) {
+    document.getElementById('modal-loading').classList.add('hidden');
+    document.getElementById('modal-empty').classList.remove('hidden');
+    document.getElementById('modal-empty').textContent = '加载失败: ' + e.message;
+    toast('存取记录加载失败: ' + e.message, 'error');
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('item-history-modal').classList.contains('hidden')) {
+    closeItemHistory();
+  }
+});
 
 /* ── KEYBOARD ── */
 document.addEventListener('keydown', e => {
